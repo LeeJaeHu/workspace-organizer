@@ -13,3 +13,12 @@
 !/organizer_core.py
 !/plan_engine.py
 !/relocation.py
+
+# README screenshots explicitly approved for publication.
+!/docs/
+/docs/*
+!/docs/images/
+/docs/images/*
+!/docs/images/desktop-before.png
+!/docs/images/desktop-after.png
+!/docs/images/interface.jpg
