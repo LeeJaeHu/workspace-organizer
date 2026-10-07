@@ -34,14 +34,14 @@ def safe_path(root: Path, relative: str, must_exist=True) -> Path:
         raise ValueError('Windows 예약 이름입니다.')
     root = root.absolute()
     if linked(root):
-        raise ValueError('시험 공간 자체가 링크입니다.')
+        raise ValueError('선택한 폴더 자체가 링크입니다.')
     current = root
     for part in parts:
         current = current / part
         if os.path.lexists(current) and linked(current):
             raise ValueError('링크·정션 경로는 변경할 수 없습니다.')
     if not current.resolve().is_relative_to(root.resolve()):
-        raise ValueError('시험 공간 밖 경로입니다.')
+        raise ValueError('선택한 폴더 밖 경로입니다.')
     if must_exist and not current.exists():
         raise ValueError('대상이 없어졌습니다. 다시 조사하세요.')
     return current
@@ -57,13 +57,38 @@ def write_json(path: Path, value):
     os.replace(tmp, path)
 
 
+def register_folder(root: Path):
+    """Register the selected directory in place; never copy or move its contents."""
+    root = Path(root).absolute()
+    if not root.is_dir():
+        raise ValueError('일반 폴더를 선택하세요.')
+    for parent in (root, *root.parents):
+        if linked(parent):
+            raise ValueError('링크·정션 경로는 사용할 수 없습니다.')
+    manifest = safe_path(root, STATE + '/manifest.json', False)
+    if manifest.exists():
+        return read_manifest(root)
+    meta = root / STATE
+    if meta.exists():
+        raise ValueError('기존 관리 폴더에 등록 정보가 없습니다. 기존 기록을 보존하고 확인하세요.')
+    meta.mkdir()
+    data = {'version': 2, 'mode': 'in_place', 'destination': str(root),
+            'status': 'ready', 'issues': [], 'created': time.time()}
+    write_json(manifest, data)
+    return data
+
+
 def read_manifest(root: Path):
     path = safe_path(root, STATE + '/manifest.json')
     data = json.loads(path.read_text(encoding='utf-8'))
-    if data.get('version') != 1 or data.get('status') not in ('ready', 'ready_with_skips'):
-        raise ValueError('아직 준비되지 않은 작업 폴더입니다. 현재 시험판은 등록된 작업 폴더만 지원합니다.')
+    if data.get('status') not in ('ready', 'ready_with_skips'):
+        raise ValueError('아직 준비되지 않은 폴더입니다. 등록 정보를 확인하세요.')
     if Path(data['destination']).resolve() != root.resolve():
-        raise ValueError('등록된 작업 폴더 위치와 다릅니다.')
+        raise ValueError('등록된 폴더 위치와 다릅니다.')
+    if data.get('version') == 2 and data.get('mode') == 'in_place':
+        return data
+    if data.get('version') != 1:
+        raise ValueError('지원하지 않는 폴더 등록 형식입니다.')
     source = Path(data['source']).resolve()
     if root.resolve().is_relative_to(source) or source.is_relative_to(root.resolve()):
         raise ValueError('원본과 시험 공간은 서로 독립된 경로여야 합니다.')

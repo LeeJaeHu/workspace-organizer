@@ -120,7 +120,7 @@ class Organizer(tk.Tk):
         scrollbar = ttk.Scrollbar(self.chat_frame, command=self.scroll_chat); scrollbar.pack(side='right', fill='y')
         self.canvas.configure(yscrollcommand=scrollbar.set); self.canvas.pack(fill='both', expand=True)
         self.messages = ttk.Frame(self.canvas); self.window = self.canvas.create_window((0, 0), window=self.messages, anchor='nw')
-        self.messages.bind('<Configure>', lambda e: self.canvas.configure(scrollregion=self.canvas.bbox('all')))
+        self.messages.bind('<Configure>', self.chat_content_resized)
         self.canvas.bind('<Configure>', self.resize_chat)
         self.bind_all('<MouseWheel>', self.wheel, add='+')
         ttk.Label(self, textvariable=self.status, foreground='#677287').pack(anchor='w', padx=20, pady=(0, 6))
@@ -128,7 +128,7 @@ class Organizer(tk.Tk):
         self.bind('<Control-y>', lambda e: self.undo_draft(True) if e.widget not in (self.input,) else None)
         self.protocol('WM_DELETE_WINDOW', self.close); self.poll_job = self.after(100, self.poll)
         self.balance_job = self.after(350, self.balance_panes)
-        self.message('폴더 열기에서 정리할 폴더를 선택하세요. 처음 여는 폴더는 원본을 보존할 작업 폴더를 화면에서 준비합니다. 이후 드래그나 AI 채팅으로 정리안을 만들 수 있습니다.',actions=[('폴더 열기',self.choose_root,False)])
+        self.message('폴더 열기에서 정리할 폴더를 선택하세요. 선택한 폴더에서 드래그나 AI 채팅으로 정리안을 만듭니다. 적용을 확인하기 전에는 자료를 이동하지 않습니다.',actions=[('폴더 열기',self.choose_root,False)])
         if initial: self.after(100, lambda: self.load(Path(initial)))
         if key_error:self.after_idle(lambda error=key_error:self.message(error))
 
@@ -173,6 +173,10 @@ class Organizer(tk.Tk):
     def scroll_chat(self,*args):
         self.canvas.yview(*args)
         self.chat_follow=self.canvas.yview()[1]>=.995
+
+    def chat_content_resized(self, event=None):
+        self.canvas.configure(scrollregion=self.canvas.bbox('all'))
+        if self.chat_follow:self.canvas.yview_moveto(1)
 
     def finish_chat_scroll(self):
         # Labels and buttons must finish sizing before the new scroll extent is used.
@@ -310,45 +314,15 @@ class Organizer(tk.Tk):
     def load_now(self, path):
         if self.busy: return
         path=Path(path)
-        if path.is_dir() and not (path/core.STATE/'manifest.json').exists():
-            self.prepare_workspace(path);return
         self.search.set('');self.search_cancel.set();self.search_generation+=1
         self.invalidate()
         def done(d):
             self.draft=d; self.root_path=path; self.location.set(str(path)); self.address.set(str(path)); self.opened={'root'}; self.selected=[]
             self.conversation.clear(); self.naming=None; self.render()
-        self.job('폴더를 확인하고 있어요…', lambda: plans.Draft(path), done)
-
-    def prepare_workspace(self,source):
-        if self.busy:return
-        w=tk.Toplevel(self);w.title('작업 폴더 준비');w.geometry('720x420')
-        w.transient(self)
-        ttk.Label(w,text='원본은 그대로 두고, 별도의 작업 폴더에서 정리합니다.',padding=14).pack(anchor='w')
-        ttk.Label(w,text='원본: '+str(source),wraplength=680,padding=(14,0)).pack(anchor='w')
-        destination=tk.StringVar(value=str(source.parent/(source.name+'-정리작업')))
-        ttk.Label(w,text='작업 위치 · 원본 밖의 새 폴더 또는 빈 폴더',padding=(14,10)).pack(anchor='w')
-        row=ttk.Frame(w);row.pack(fill='x',padx=14)
-        ttk.Entry(row,textvariable=destination).pack(side='left',fill='x',expand=True)
-        def choose():
-            selected=filedialog.askdirectory(parent=w,title='비어 있는 작업 폴더 선택')
-            if selected:destination.set(selected)
-        ttk.Button(row,text='위치 선택',command=choose).pack(side='right',padx=5)
-        ttk.Label(w,text='제외할 하위 경로 (선택 사항 · 한 줄에 하나)',padding=(14,10)).pack(anchor='w')
-        exclusions=tk.Text(w,height=3);exclusions.pack(fill='x',padx=14)
-        ttk.Label(w,text='자료를 작업 위치에 복사하고 검증합니다. 자료 크기 외에 여유 공간 2GB가 필요합니다.\n준비만으로 AI 요청이나 원본 변경은 발생하지 않습니다.',padding=14,wraplength=680).pack(anchor='w')
-        def start():
-            if self.busy:return
-            target=Path(destination.get().strip())
-            if not target.is_absolute():self.message('작업 위치는 전체 경로로 입력하세요.');return
-            exclude=[line.strip().replace('\\','/').strip('/') for line in exclusions.get('1.0','end').splitlines() if line.strip()]
-            w.destroy();self.ai_cancel=threading.Event();cancel=self.ai_cancel
-            self.message('작업 폴더를 준비합니다. 원본: '+str(source)+'\n작업 위치: '+str(target),actions=[('준비 중지',cancel.set,False)])
-            def done(report):
-                self.message(f"작업 폴더 준비 완료 · {report['copied_files']:,}개 파일 검증 · 제외/접근 실패 {len(report['issues'])}건",
-                    actions=[('제외·실패 내역',lambda:self.text_window('작업 폴더 준비 내역','\n'.join(r['path']+' · '+r['reason'] for r in report['issues']) or '없음'),False)])
-                self.load(target)
-            self.job('작업 폴더를 준비하고 있어요…',lambda:core.copy_sandbox(source,target,progress=self.ai_progress.put,cancel=cancel,exclude=exclude),done)
-        ttk.Button(w,text='이 위치에 작업 폴더 준비',command=start).pack(anchor='e',padx=14,pady=8)
+        def open_folder():
+            core.register_folder(path)
+            return plans.Draft(path)
+        self.job('폴더를 확인하고 있어요…', open_folder, done)
 
     def refresh(self):
         if self.root_path: self.load(self.root_path)
@@ -685,7 +659,7 @@ class Organizer(tk.Tk):
                 self.job('확인한 변경을 적용하고 있어요…',lambda:plans.execute(self.root_path,prepared,path_warnings_confirmed=bool(warnings)),finished)
             if warnings:
                 self.message(f'{len(warnings)}개 항목에서 경로 참조가 발견됐습니다. 과거 기록일 수도 있지만 이동 후 실행이나 파일 참조가 깨질 수 있습니다. 경로를 자동 수정하지 않습니다. 내용을 확인한 뒤 진행 여부를 선택하세요.\n'+warning_text)
-            self.message(f'{len(prepared)}개 변경을 적용할까요?\n'+'\n'.join(summaries[:8])+ ('\n추가 내역은 전체 목록에서 확인하세요.' if len(summaries)>8 else '')+'\n'+reviewed['scope'],actions=[('전체 변경·Git 내역 보기',lambda:self.text_window('적용할 변경','\n\n'.join(lines)+'\n\n'+warning_text),False),('경로 경고 확인 · 적용' if warnings else '확인했어요 · 적용',apply,True),('계속 수정',self.invalidate,False)])
+            self.message(f'{len(prepared)}개 변경을 실제 폴더에 적용할까요?\n대상: {self.root_path}\n'+'\n'.join(summaries[:8])+ ('\n추가 내역은 전체 목록에서 확인하세요.' if len(summaries)>8 else '')+'\n'+reviewed['scope'],actions=[('전체 변경·Git 내역 보기',lambda:self.text_window('적용할 변경','\n\n'.join(lines)+'\n\n'+warning_text),False),('경로 경고 확인 · 적용' if warnings else '확인했어요 · 적용',apply,True),('계속 수정',self.invalidate,False)])
         self.job('내용·Git·이동 준비 상태를 확인하고 있어요…',lambda:plans.review(self.root_path,ops),done)
 
     def text_window(self,title,text):
@@ -693,8 +667,8 @@ class Organizer(tk.Tk):
         t=tk.Text(w,wrap='word',padx=14,pady=14);t.pack(fill='both',expand=True);t.insert('1.0',text);t.configure(state='disabled')
 
     def settings(self):
-        w=tk.Toplevel(self);w.title('AI 연결');w.geometry(f'690x{min(680,self.winfo_screenheight()-80)}')
-        ttk.Label(w,text='사용할 공급자 하나를 선택하세요. 키는 이 Windows 계정으로 암호화해 자동 저장합니다.',padding=15).pack(anchor='w')
+        w=tk.Toplevel(self);w.title('AI 연결');w.geometry(f'690x{min(460,self.winfo_screenheight()-80)}')
+        ttk.Label(w,text='OpenAI API 키를 입력하세요. 이 Windows 계정으로 암호화해 자동 저장합니다.',padding=15).pack(anchor='w')
         for provider,model in ai.MODELS.items():
             group=ttk.LabelFrame(w,text=provider,padding=8);group.pack(fill='x',padx=15,pady=4)
             options=ttk.Frame(group);options.pack(fill='x')
@@ -712,7 +686,7 @@ class Organizer(tk.Tk):
                 entry.configure(textvariable=self.budgets[rates['id']])
             picker.bind('<<ComboboxSelected>>',show_price);show_price()
             row=ttk.Frame(group);row.pack(fill='x',pady=(6,0))
-            ttk.Radiobutton(row,text='사용',value=provider,variable=self.provider).pack(side='left')
+            ttk.Label(row,text='API 키').pack(side='left')
             ttk.Entry(row,textvariable=self.keys[provider],show='●',width=44).pack(side='left',padx=10,fill='x',expand=True)
             ttk.Button(row,text='지우기',command=lambda p=provider:self.keys[p].set('')).pack(side='right')
         ttk.Label(w,text='전송하면 AI가 바로 조사하고 정리안을 만듭니다. 키는 자동 저장되며 지우기를 누르면 저장된 키도 삭제됩니다.',padding=15,wraplength=620).pack(anchor='w')
@@ -727,7 +701,7 @@ class Organizer(tk.Tk):
         if path.exists():
             with path.open(encoding='utf-8') as f:recent=''.join(deque(f,maxlen=150))
         else:recent='아직 기록이 없습니다. 새 버전에서 AI 요청을 보내면 자동으로 기록됩니다.'
-        self.text_window('진단 기록',str(path)+'\n\n최근 150개 사건입니다. 캡처 대신 “방금 오류 기록 확인해줘”라고 알려주세요.\n키·채팅·파일 이름·본문은 저장하지 않습니다.\n\n'+recent)
+        self.text_window('진단 기록',str(path)+'\n\n최근 150개 사건입니다. 문제 발생 시 이 기록 파일을 전달해 주세요.\n키·채팅·파일 이름·본문은 저장하지 않습니다.\n\n'+recent)
 
     def show_guide(self):
         self.text_window('폴더착착 이용 안내', '''전송하면 바로 진행합니다
@@ -737,7 +711,7 @@ AI 연결에 키를 입력하고 메시지를 전송하면 선택한 모델이 �
 현재 작업 폴더의 이름·정리안·메모·최근 대화와 AI가 필요한 만큼 조회한 목록 및 텍스트/코드/CSV/JSON/DOCX 발췌가 선택한 공급자에게 전송됩니다. 관리 영역·생성물·링크·인증정보 후보는 제외하지만 모든 민감정보를 판별하지는 못합니다. 민감한 자료가 없는 작업 범위를 선택하세요. PDF·이미지·음성 본문은 아직 지원하지 않습니다.
 
 얼마나 조사하고 비용이 드나요?
-기본 조사에는 고정 호출 횟수·누적 항목 수 제한이 없습니다. 자료가 많으면 이전 조회 자료를 나눠 보내고 필요할 때 재조회합니다. 파일 2MB와 한 번에 본문 6,000자, 지원 형식 제한은 유지합니다. 기본 예산은 GPT-6.1 Sol $1.00, 다른 모델 $0.20이며 AI 연결에서 모델별로 변경할 수 있습니다. 다음 메시지부터 적용되고 재실행하면 기본값으로 돌아갑니다. 이미 사용한 추정액과 다음 요청의 보수적인 비용 상한을 더해 예산을 검사하므로 예산만큼 쓰기 전에 멈출 수 있습니다. 공급자 결제 상한은 아니며 실제 청구는 공급자 콘솔에서 확인하세요. 중지해도 이미 전송한 요청은 과금될 수 있습니다. 별도 합성 테스트는 계속 최대 $0.20입니다.
+기본 조사에는 고정 호출 횟수·누적 항목 수 제한이 없습니다. 자료가 많으면 이전 조회 자료를 나눠 보내고 필요할 때 재조회합니다. 파일 2MB와 한 번에 본문 6,000자, 지원 형식 제한은 유지합니다. 기본 예산은 GPT-6.1 Sol $1.00, Mini $0.20이며 AI 연결에서 모델별로 변경할 수 있습니다. 다음 메시지부터 적용되고 재실행하면 기본값으로 돌아갑니다. 이미 사용한 추정액과 다음 요청의 보수적인 비용 상한을 더해 예산을 검사하므로 예산만큼 쓰기 전에 멈출 수 있습니다. 공급자 결제 상한은 아니며 실제 청구는 공급자 콘솔에서 확인하세요. 중지해도 이미 전송한 요청은 과금될 수 있습니다. 별도 합성 테스트는 계속 최대 $0.20입니다.
 
 언제 실제 파일이 바뀌나요?
 AI와 드래그는 변경 후 화면의 정리안만 편집합니다. 적용 요청 → 변경 검토 → ‘확인했어요 · 적용’ 이후에만 프로그램이 파일을 이동합니다. 삭제·임의 명령 실행·덮어쓰기 기능은 제공하지 않습니다. Git/개발 환경 등의 이동 제약은 최종 검사에서 확인하며, 준비가 필요한 항목은 보류합니다.

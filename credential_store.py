@@ -42,7 +42,7 @@ def load(path):
         value=json.loads(crypt(path.read_bytes(),decrypt=True))
         if not isinstance(value,dict) or any(p not in ('OpenAI','Gemini','Grok') or not isinstance(k,str) for p,k in value.items()):
             raise ValueError()
-        return value
+        return {p:k for p,k in value.items() if p == 'OpenAI'}
     except (OSError,ValueError):
         raise ValueError('저장된 API 키를 불러오지 못했습니다. 현재 Windows 계정과 저장 파일을 확인하세요.') from None
 
@@ -51,7 +51,7 @@ def save(path, changes):
     path=Path(path)
     values=load(path)
     for provider,key in changes.items():
-        if provider not in ('OpenAI','Gemini','Grok'):raise ValueError('지원하지 않는 공급자입니다.')
+        if provider != 'OpenAI':raise ValueError('지원하지 않는 공급자입니다.')
         if key.strip():values[provider]=key.strip()
         else:values.pop(provider,None)
     if not values:

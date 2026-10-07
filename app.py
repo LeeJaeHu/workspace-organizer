@@ -28,12 +28,20 @@ if __name__ == '__main__':
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
     temporary = tempfile.TemporaryDirectory(prefix='organizer-ui-') if args.demo or args.smoke_test else None
     initial = make_demo(Path(temporary.name)) if temporary else (Path(args.root) if args.root else None)
+    if args.smoke_test: initial = Path(temporary.name)/'source'
+    smoke_exit = 1
     app = Organizer(initial,credential_path=Path(temporary.name)/'credentials.bin' if args.smoke_test else None)
     if args.smoke_test:
         def check():
-            assert app.draft and len(app.draft.nodes) >= 3, 'demo tree failed'
-            assert len(app.keys) == 3
-            app.destroy()
+            global smoke_exit
+            try:
+                assert app.draft and len(app.draft.nodes) >= 3, 'demo tree failed'
+                assert set(app.keys) == {'OpenAI'}
+                assert core.read_manifest(initial)['mode'] == 'in_place'
+                smoke_exit = 0
+            finally:
+                app.destroy()
         app.after(2500, check)
     app.mainloop()
     if temporary: temporary.cleanup()
+    if args.smoke_test: raise SystemExit(smoke_exit)

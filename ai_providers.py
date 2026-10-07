@@ -1,5 +1,4 @@
-"""Three explicit providers. No key persistence, SDK, retry, tools, or hidden fallback."""
-import datetime
+"""OpenAI requests. No SDK, automatic retry, or hidden fallback."""
 import json
 import time
 import urllib.error
@@ -8,15 +7,10 @@ import urllib.request
 from organizer_core import GROUPS
 
 MODELS = {
-    'Gemini': {'id': 'gemini-3.8-flash', 'input': .75, 'output': 3.75,
-               'source': 'https://ai.google.dev/gemini-api/docs/pricing',
-               'why': '코드·문서 이해와 구조화 출력. 첫 비교 후보. 2026년 말까지 할인 단가.'},
     'OpenAI': {'id': 'gpt-5.4-mini', 'input': .75, 'output': 4.5,
                'source': 'https://developers.openai.com/api/docs/models/gpt-5.4-mini',
                'why': '코드 이해와 구조화 출력을 지원하는 소형 모델. 비용·품질 균형 후보.'},
-    'Grok': {'id': 'grok-4.7', 'input': 2., 'output': 6.,
-             'source': 'https://docs.x.ai/developers/models/grok-4.7',
-             'why': '텍스트·코드와 구조화 출력 지원. 다른 공급자와 품질 비교 후보.'},
+
 }
 MODEL_OPTIONS={p:{m['id']:dict(m)} for p,m in MODELS.items()}
 MODEL_OPTIONS['OpenAI']['gpt-6.1-sol']={
@@ -63,19 +57,12 @@ def build_request(provider, key, data, schema=None, system=None, model_id=None):
     system = SYSTEM if system is None else system
     prompt = json.dumps(data, ensure_ascii=False)
     headers = {'Content-Type': 'application/json'}
-    if provider == 'Gemini':
-        url = 'https://generativelanguage.googleapis.com/v1beta/interactions'
-        headers['x-goog-api-key'] = key.strip()
-        body = {'model': model, 'system_instruction': system, 'input': prompt, 'store': False,
-                'generation_config': {'max_output_tokens': 2500, 'thinking_level': 'low'},
-                'response_format': {'type': 'text', 'mime_type': 'application/json', 'schema': schema}}
-    else:
-        url = ('https://api.openai.com' if provider == 'OpenAI' else 'https://api.x.ai') + '/v1/responses'
-        headers['Authorization'] = 'Bearer ' + key.strip()
-        body = {'model': model, 'input': [{'role': 'system', 'content': system}, {'role': 'user', 'content': prompt}],
-                'store': False, 'max_output_tokens': 2500,
-                'text': {'format': {'type': 'json_schema', 'name': 'folder_summary', 'strict': True, 'schema': schema}}}
-        if provider == 'OpenAI': body['reasoning'] = {'effort': 'low'}
+    url = 'https://api.openai.com/v1/responses'
+    headers['Authorization'] = 'Bearer ' + key.strip()
+    body = {'model': model, 'input': [{'role': 'system', 'content': system}, {'role': 'user', 'content': prompt}],
+            'store': False, 'max_output_tokens': 2500,
+            'text': {'format': {'type': 'json_schema', 'name': 'folder_summary', 'strict': True, 'schema': schema}},
+            'reasoning': {'effort': 'low'}}
     return urllib.request.Request(url, data=json.dumps(body,ensure_ascii=False).encode('utf-8'), headers=headers, method='POST')
 
 
@@ -103,18 +90,12 @@ def transport(request):
 def extract_response(provider, response):
     if response.get('status') != 'completed':
         raise ValueError('모델 응답이 완료되지 않았습니다. 적용할 제안으로 사용하지 않습니다.')
-    if provider == 'Gemini':
-        # Current Interactions API returns model_output steps; retain outputs compatibility.
-        texts = [c.get('text', '') for s in response.get('steps', []) if s.get('type') == 'model_output'
-                 for c in s.get('content', []) if c.get('type') == 'text']
-        if not texts:
-            texts = [s.get('text', '') for s in response.get('outputs', []) if s.get('type') == 'text']
-    else:
-        messages=[s for s in response.get('output',[]) if s.get('type')=='message']
-        finals=[s for s in messages if s.get('phase')=='final_answer']
-        messages=finals or [s for s in messages if s.get('phase')!='commentary']
-        texts = [c.get('text', '') for s in messages
-                 for c in s.get('content', []) if c.get('type') == 'output_text']
+    model_config(provider)
+    messages=[s for s in response.get('output',[]) if s.get('type')=='message']
+    finals=[s for s in messages if s.get('phase')=='final_answer']
+    messages=finals or [s for s in messages if s.get('phase')!='commentary']
+    texts = [c.get('text', '') for s in messages
+             for c in s.get('content', []) if c.get('type') == 'output_text']
     if not texts: raise ValueError('모델이 사용할 수 있는 설명을 반환하지 않았습니다.')
     try:
         return json.loads(''.join(texts))
@@ -148,15 +129,9 @@ def validate_result(value, data):
 def usage_cost(provider, response, model_id=None):
     u = response.get('usage') or {}
     if not isinstance(u, dict): u = {}
-    if provider == 'Gemini':
-        inp, out, thought = u.get('total_input_tokens'), u.get('total_output_tokens'), u.get('total_thought_tokens')
-        if isinstance(out, int) and isinstance(thought, int): out += thought
-        else: out = None
-    else:
-        inp, out = u.get('input_tokens'), u.get('output_tokens')
+    inp, out = u.get('input_tokens'), u.get('output_tokens')
     rate = model_config(provider,model_id)
     ri, ro = rate['input'], rate['output']
-    if provider == 'Gemini' and datetime.date.today() >= datetime.date(2027, 1, 1): ri, ro = 1.5, 7.5
     valid = all(isinstance(n, int) and not isinstance(n, bool) and n >= 0 for n in (inp, out))
     return {'input_tokens': inp, 'billable_output_tokens': out, 'estimated_usd': (inp * ri + out * ro) / 1_000_000 if valid else None,
             'note': '공개 표준 유료 단가 추정(캐시 할인·무료 한도·세금 미반영). 실제 청구는 공급자 콘솔 확인.', 'rate_checked': '2026-10-07'}

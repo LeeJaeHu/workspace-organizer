@@ -18,9 +18,8 @@ def project_root(path):
 
 def project_ancestor(root, path):
     for parent in path.parents:
-        if parent == root or parent.is_relative_to(root):
-            if project_root(parent):
-                return parent
+        if project_root(parent):
+            return parent
     return None
 
 

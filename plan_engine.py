@@ -29,9 +29,8 @@ def checked(root, relative, exists=True):
 def git_ancestor(root, path, include_self=False):
     parts = [path, *path.parents] if include_self else path.parents
     for p in parts:
-        if p == root or p.is_relative_to(root):
-            if os.path.lexists(p / '.git'):
-                return p
+        if os.path.lexists(p / '.git'):
+            return p
     return None
 
 
