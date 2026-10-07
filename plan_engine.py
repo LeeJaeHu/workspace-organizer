@@ -29,7 +29,7 @@ def checked(root, relative, exists=True):
 def git_ancestor(root, path, include_self=False):
     parts = [path, *path.parents] if include_self else path.parents
     for p in parts:
-        if os.path.lexists(p / '.git'):
+        if os.path.lexists(p / '.git') and not core.approved_external_git(root, p):
             return p
     return None
 
@@ -211,6 +211,7 @@ def prepare(root, operations, allow_path_warnings=False):
         for b in sources[i+1:]:
             if within(a, b) or within(b, a): raise ValueError('상위 폴더와 내부 항목을 동시에 변경할 수 없습니다. 한 단계씩 적용하세요.')
     for op in prepared:
+        op['external_git_consent'] = copy.deepcopy(core.external_git_consent(root))
         if op['kind'] not in ('mkdir', 'move'): raise ValueError('허용되지 않은 작업입니다.')
         dest = op['destination']; dst = checked(root, dest, False)
         if key(dest) in destinations or os.path.lexists(dst): raise ValueError('목적지 이름이 충돌합니다. 덮어쓰지 않습니다.')
@@ -272,11 +273,14 @@ def execute(root, prepared, path_warnings_confirmed=False):
     fresh = prepare(root, prepared,allow_path_warnings=path_warnings_confirmed)
     for old, new in zip(prepared, fresh):
         if (old.get('fingerprint') != new.get('fingerprint') or old.get('git') != new.get('git')
-                or old.get('readiness') != new.get('readiness')):
+                or old.get('readiness') != new.get('readiness')
+                or old.get('external_git_consent') != new.get('external_git_consent')):
             raise ValueError('확인 이후 내용 또는 Git 상태가 바뀌었습니다. 다시 검토하세요.')
     completed = []
     for op in fresh:
         try:
+            if op.get('external_git_consent') != core.external_git_consent(root):
+                raise ValueError('상위 Git 승인 상태가 바뀌었습니다. 다시 검토하세요.')
             dst = checked(root, op['destination'], False)
             if os.path.lexists(dst): raise ValueError('실행 직전에 목적지가 생겼습니다.')
             if git_ancestor(root, dst.parent, True): raise ValueError('목적지 Git 상태가 달라졌습니다.')

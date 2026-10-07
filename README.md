@@ -6,7 +6,7 @@
 
 ## Windows 프로그램 다운로드
 
-**[폴더착착 v0.1.2 다운로드 (Windows x64 ZIP)](https://github.com/LeeJaeHu/workspace-organizer/releases/download/v0.1.2/FolderChakchak-v0.1.2-windows-x64.zip)** · [릴리즈 안내](https://github.com/LeeJaeHu/workspace-organizer/releases/tag/v0.1.2)
+**[폴더착착 v0.1.3 다운로드 (Windows x64 ZIP)](https://github.com/LeeJaeHu/workspace-organizer/releases/download/v0.1.3/FolderChakchak-v0.1.3-windows-x64.zip)** · [릴리즈 안내](https://github.com/LeeJaeHu/workspace-organizer/releases/tag/v0.1.3)
 
 Python 설치나 명령어 입력 없이 사용할 수 있습니다.
 
@@ -65,6 +65,15 @@ py -3.12 app.py --root "D:\정리할자료"
 - 폴더·파일 메모는 우클릭으로 작성하고 이름 옆 **메모** 표시를 눌러 수정합니다. AI에도 참고 정보로 전달됩니다.
 - 채팅 맨 아래를 보고 있으면 새 메시지를 따라 내려가고, 이전 대화를 읽는 중이면 위치를 유지합니다.
 - **미적용 정리안과 채팅은 앱 종료 후 복원되지 않습니다.** API 키는 별도로 저장됩니다.
+
+## 상위 폴더에 잘못 만든 Git 때문에 정리가 막힐 때
+
+바탕화면의 상위 폴더처럼 **선택 범위 밖에 있는 Git**은 사용자가 예외를 승인할 수 있습니다. 폴더를 열면 채팅에 Git 위치와 정리 범위를 표시합니다. 내용을 확인하고 **상위 Git 예외 승인 · 이 폴더 정리**를 누른 뒤 정리안을 요청하세요.
+
+- 승인 범위는 선택한 폴더 안으로 한정하고 앱 종료 시 해제합니다. **상위 Git 보호 다시 켜기**로 취소할 수 있습니다.
+- `.git`을 삭제하거나 수정하지 않으며 커밋·스테이징도 하지 않습니다. 다만 추적 파일을 옮기면 Git에 삭제·추가 또는 이름 변경으로 표시될 수 있습니다.
+- 실제 이동은 여전히 정리안 검토 후 적용 확인이 필요합니다. 승인 상태는 이동 기록에 남습니다.
+- 선택한 폴더 자체/하위의 별도 Git 저장소, 다른 개발 프로젝트 표시 파일, 링크·충돌·접근 제한은 이 승인으로 해제하지 않습니다. worktree 등 연결형 상위 Git은 별도 확인이 필요합니다.
 
 ## 모델·키·비용
 
@@ -130,4 +139,4 @@ py -3.12 app.py --smoke-test
 .\dist\FolderChakchak\FolderChakchak.exe --smoke-test
 ```
 
-2026-10-08 기준 로컬 자동 검사 84개와 Windows 실행 검사를 통과했습니다. 이는 실제 사용자 자료 전체의 정리 품질이나 모든 공급자 모델의 응답 품질을 검증했다는 뜻은 아닙니다.
+2026-10-08 기준 로컬 자동 검사 89개와 Windows 실행 검사를 통과했습니다. 이는 실제 사용자 자료 전체의 정리 품질이나 모든 공급자 모델의 응답 품질을 검증했다는 뜻은 아닙니다.

@@ -57,9 +57,59 @@ def write_json(path: Path, value):
     os.replace(tmp, path)
 
 
+# Explicit local UI consent, scoped to a selected root and this process only.
+_ancestor_git_approvals = {}
+
+
+def external_git_boundaries(root):
+    root = Path(root).absolute()
+    result = []
+    for parent in root.parents:
+        marker = parent / '.git'
+        if not os.path.lexists(marker): continue
+        if linked(marker) or not marker.is_dir():
+            raise ValueError('상위 Git이 연결 파일·링크입니다. 일반 저장소 예외 승인으로 처리할 수 없습니다: ' + str(parent))
+        st = marker.stat()
+        result.append({'boundary': str(parent), 'identity': [st.st_dev, st.st_ino,
+                      getattr(st, 'st_birthtime_ns', st.st_ctime_ns)]})
+    return result
+
+
+def approve_external_git(root, expected):
+    root = Path(root).absolute()
+    read_manifest(root)
+    current = external_git_boundaries(root)
+    if not current or current != expected:
+        raise ValueError('상위 Git 경계가 바뀌었습니다. 폴더를 다시 열어 확인하세요.')
+    _ancestor_git_approvals[str(root)] = {'boundaries': current, 'approved_at': time.time()}
+
+
+def revoke_external_git(root):
+    _ancestor_git_approvals.pop(str(Path(root).absolute()), None)
+
+
+def external_git_consent(root):
+    root = Path(root).absolute()
+    approval = _ancestor_git_approvals.get(str(root))
+    if not approval: return None
+    try:
+        if external_git_boundaries(root) == approval['boundaries']: return approval
+    except (ValueError, OSError): pass
+    return None
+
+
+def approved_external_git(root, boundary):
+    root, boundary = Path(root).absolute(), Path(boundary).absolute()
+    if boundary == root or not root.is_relative_to(boundary): return False
+    approval = external_git_consent(root)
+    return bool(approval and any(Path(row['boundary']) == boundary for row in approval['boundaries']))
+
+
 def register_folder(root: Path):
     """Register the selected directory in place; never copy or move its contents."""
     root = Path(root).absolute()
+    if any(p.casefold() in ('.git', STATE.casefold()) for p in root.parts):
+        raise ValueError('Git·앱 관리 폴더 내부는 정리 대상으로 열 수 없습니다.')
     if not root.is_dir():
         raise ValueError('일반 폴더를 선택하세요.')
     for parent in (root, *root.parents):

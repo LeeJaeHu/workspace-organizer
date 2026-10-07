@@ -51,6 +51,7 @@ message에 읽은 상대 경로 근거와 미확인 사항을 짧게 밝힌다. 
 프로젝트 내부 편집이 제한되면 프로젝트 폴더 자체를 유지하거나 통째로 분류하는 대안을 검토한다. 제한을 우회하지 않는다.
 plan_feedback가 있으면 거부된 제안은 아직 반영되지 않았다. 검사 이유를 해결한 전체 제안을 다시 반환한다. accepted_operations는 검사에 통과한 초안이다. 이를 불필요하게 버리지 말고 blocked_operations만 제외하거나 대체한다.
 Git 내부 파일이 막히면 그 파일은 유지하고 경계 정보의 프로젝트 폴더 전체 이동을 검토한다. 일반 문서 등 독립 항목은 계속 정리한다. 사용자가 id를 알아서 제공하게 하지 말고 list로 필요한 id를 직접 확인한다.
+external_git_approved가 true이면 사용자가 앱에서 선택 범위 밖 상위 Git 예외를 승인했다. 해당 상위 Git을 이유로 다시 거부하지 말고 남은 로컬 경계를 따른다. 승인이 없고 상위 Git만 문제라면 채팅의 상위 Git 예외 승인 버튼을 안내한다. 모델이 승인을 대신할 수 없다.
 root_policy와 nodes의 project_boundary는 로컬에서 확인한 경계와 표시 파일이다. 바탕화면이라는 이름만으로 접근 불가라 단정하지 않는다. 접근 오류와 프로젝트 구조 보호를 구분한다. 루트 전체가 막혔다면 실제 경계와 markers를 밝히고 열어야 할 상위 범위를 구체적으로 안내한다.
 조회 실패는 해당 항목만 제외하고 다른 읽을 수 있는 자료로 진행한다. 최종 답에는 진행한 변경, 그대로 둔 항목과 이유, 사용자가 할 다음 행동을 짧게 설명한다.
 remaining_calls가 1이면 추가 조사 대신 확인된 범위로 답하고 부족한 범위를 명시한다.
@@ -138,6 +139,7 @@ class Investigation:
             n['planned_path']=self.draft.path(n['id'])
             if n['path']:
                 n['project_boundary']=relocation.boundary_info(self.draft.root,self.draft.root/n['path'])
+        data['external_git_approved']=bool(core.external_git_consent(self.draft.root))
         data['root_policy']=relocation.boundary_info(self.draft.root,self.draft.root,include_self=True)
         data.update(investigation=list(self.results),plan_feedback=self.feedback,protocol_notice=self.protocol_notice,remaining_calls=remaining,
                     limits={'list_page':PAGE,'text_chunk':CHUNK,'supported':'텍스트/코드/CSV/JSON 및 DOCX. PDF/이미지/음성은 미지원.'})

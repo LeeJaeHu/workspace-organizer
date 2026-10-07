@@ -319,10 +319,32 @@ class Organizer(tk.Tk):
         def done(d):
             self.draft=d; self.root_path=path; self.location.set(str(path)); self.address.set(str(path)); self.opened={'root'}; self.selected=[]
             self.conversation.clear(); self.naming=None; self.render()
+            self.explain_external_git(path)
         def open_folder():
             core.register_folder(path)
             return plans.Draft(path)
         self.job('폴더를 확인하고 있어요…', open_folder, done)
+
+    def explain_external_git(self, path):
+        try: boundaries=core.external_git_boundaries(path)
+        except (ValueError,OSError) as exc:
+            self.message(str(exc));return
+        if not boundaries:return
+        def change(allow):
+            if self.busy or self.root_path != path:return
+            try:
+                if allow:core.approve_external_git(path,boundaries)
+                else:core.revoke_external_git(path)
+            except (ValueError,OSError) as exc:self.message(str(exc));return
+            self.invalidate();self.draft.version+=1
+            self.message('상위 Git 예외를 승인했습니다. 선택한 폴더 안에서 정리안을 만들 수 있습니다. 실제 이동은 적용 확인 후 실행합니다.' if allow else '상위 Git 보호를 다시 적용했습니다. 기존 정리안도 적용 전에 다시 검사합니다.')
+            self.explain_external_git(path)
+        approved=core.external_git_consent(path) is not None
+        self.message(('이 폴더의 상위 Git 예외가 승인되어 있습니다.' if approved else '선택한 폴더 밖에서 상위 Git 저장소를 발견했습니다.')+
+            '\nGit 위치: '+', '.join(row['boundary'] for row in boundaries)+
+            '\n정리 범위: '+str(path)+
+            '\n상위 저장소를 사용하지 않는다면 예외를 승인하고 이 폴더 안을 정리할 수 있습니다. 추적 파일 이동은 Git에 삭제·추가 또는 이름 변경으로 표시될 수 있습니다. Git 기록은 삭제하지 않으며 커밋·스테이징하지 않습니다. 내부의 별도 프로젝트와 .git 자체는 계속 보호합니다. 승인은 앱 종료 시 해제됩니다.',
+            actions=[('상위 Git 보호 다시 켜기' if approved else '상위 Git 예외 승인 · 이 폴더 정리',lambda:change(not approved),False)])
 
     def refresh(self):
         if self.root_path: self.load(self.root_path)
