@@ -16,6 +16,7 @@ import xml.etree.ElementTree as ET
 import ai_providers as ai
 import chat_planner as chat
 import organizer_core as core
+import relocation
 
 MAX_CALLS = 8
 # A rolling request window, not a limit on the total investigation.
@@ -48,11 +49,47 @@ message에 읽은 상대 경로 근거와 미확인 사항을 짧게 밝힌다. 
 정리해 달라는 요청에는 논의가 필요하다는 답만 하지 말고, 조사 후 구체적인 operations로 초안을 제시한다.
 자료가 부족하면 사용자가 대신 조사하게 하지 말고 inspect를 사용한다. 읽을 수 없는 일부 항목 때문에 전체 작업을 포기하지 않는다.
 프로젝트 내부 편집이 제한되면 프로젝트 폴더 자체를 유지하거나 통째로 분류하는 대안을 검토한다. 제한을 우회하지 않는다.
-plan_feedback가 있으면 거부된 제안은 아직 반영되지 않았다. 검사 이유를 해결한 전체 제안을 다시 반환한다.
+plan_feedback가 있으면 거부된 제안은 아직 반영되지 않았다. 검사 이유를 해결한 전체 제안을 다시 반환한다. accepted_operations는 검사에 통과한 초안이다. 이를 불필요하게 버리지 말고 blocked_operations만 제외하거나 대체한다.
+Git 내부 파일이 막히면 그 파일은 유지하고 경계 정보의 프로젝트 폴더 전체 이동을 검토한다. 일반 문서 등 독립 항목은 계속 정리한다. 사용자가 id를 알아서 제공하게 하지 말고 list로 필요한 id를 직접 확인한다.
+root_policy와 nodes의 project_boundary는 로컬에서 확인한 경계와 표시 파일이다. 바탕화면이라는 이름만으로 접근 불가라 단정하지 않는다. 접근 오류와 프로젝트 구조 보호를 구분한다. 루트 전체가 막혔다면 실제 경계와 markers를 밝히고 열어야 할 상위 범위를 구체적으로 안내한다.
+조회 실패는 해당 항목만 제외하고 다른 읽을 수 있는 자료로 진행한다. 최종 답에는 진행한 변경, 그대로 둔 항목과 이유, 사용자가 할 다음 행동을 짧게 설명한다.
 remaining_calls가 1이면 추가 조사 대신 확인된 범위로 답하고 부족한 범위를 명시한다.
 remaining_calls가 null이면 고정 호출 횟수 제한이 없다. 필요한 조사를 마치면 최종 제안을 반환한다.
 context_notice에 생략된 자료가 있으면 전체를 확인한 것으로 단정하지 않는다. 필요한 항목은 list/read로 다시 조회할 수 있다.
 '''
+
+
+def partition_proposal(draft, candidate, data):
+    """Retain only sequentially valid operations on a disposable draft."""
+    chat.validate(candidate, data)
+    accepted, blocked = [], []
+    for op in candidate['operations']:
+        proposal = {'message': '', 'operations': accepted + [op]}
+        try:
+            chat.validate(proposal, data)
+            trial = copy.deepcopy(draft)
+            chat.apply_proposal(trial, proposal, trial.version)
+            accepted.append(op)
+        except (ValueError, OSError) as exc:
+            node = draft.nodes.get(op['id'], {})
+            boundary = relocation.boundary_info(draft.root, draft.root/node['source']) if node.get('source') else None
+            target = draft.nodes.get(op['parent'], {})
+            if boundary is None and target.get('source') is not None:
+                boundary = relocation.boundary_info(draft.root, draft.root/target['source'], include_self=True)
+            blocked.append({'operation': op, 'reason': str(exc), 'project_boundary': boundary,
+                            'next_step': boundary['next_step'] if boundary else
+                            '이 항목은 현재 위치에 두고 다른 항목을 정리하세요. 목적지는 프로젝트 외부의 기존 폴더 또는 새 분류 폴더를 사용하고, 이름 충돌이면 다른 이름을 제안하세요. 새 폴더 생성이 거부됐다면 그 폴더를 참조하는 이동도 제외하세요.'})
+    return {'message': candidate['message'], 'operations': accepted}, blocked
+
+
+def partial_message(candidate, blocked):
+    lines = [f"초안 검사를 통과한 {len(candidate['operations'])}개 작업만 정리안에 남겼습니다. 실제 파일은 아직 변경하지 않았습니다."]
+    for row in blocked:
+        op = row['operation']
+        boundary=row.get('project_boundary')
+        evidence=(' 확인된 경계: '+boundary['boundary']+' ('+', '.join(boundary['markers'])+').' if boundary else '')
+        lines.append(f"• {op['id'] or op['name']}: {row['reason']}{evidence} 다음 방법: {row['next_step']}")
+    return {'message': '\n'.join(lines)[:6000], 'operations': candidate['operations']}
 
 
 def allowed(relative):
@@ -99,6 +136,9 @@ class Investigation:
         for n in data['nodes']:
             n['path']=self.draft.nodes[n['id']]['source']
             n['planned_path']=self.draft.path(n['id'])
+            if n['path']:
+                n['project_boundary']=relocation.boundary_info(self.draft.root,self.draft.root/n['path'])
+        data['root_policy']=relocation.boundary_info(self.draft.root,self.draft.root,include_self=True)
         data.update(investigation=list(self.results),plan_feedback=self.feedback,protocol_notice=self.protocol_notice,remaining_calls=remaining,
                     limits={'list_page':PAGE,'text_chunk':CHUNK,'supported':'텍스트/코드/CSV/JSON 및 DOCX. PDF/이미지/음성은 미지원.'})
         data['context_notice']={'omitted_results':0,'omitted_nodes':0,
@@ -224,7 +264,7 @@ def run(provider,key,draft,selected,message,conversation,request_fn=ai.transport
     started=time.monotonic()
     usage={'provider':provider,'model':model_id,'budget_usd':budget,'calls':0,
            'input_tokens':0,'billable_output_tokens':0,'estimated_usd':0.0}
-    result=None;error=None
+    result=None;error=None;fallback=None
     try:
         for turn in itertools.count():
             if max_calls is not None and turn>=max_calls:
@@ -277,16 +317,25 @@ def run(provider,key,draft,selected,message,conversation,request_fn=ai.transport
                 candidate={'message':value['message'],'operations':value['operations']}
                 try:
                     candidate=chat.validate(candidate,data)
-                    # Validate atomically on an isolated draft, never the live UI or disk.
-                    trial=copy.deepcopy(session.draft)
-                    chat.apply_proposal(trial,candidate,trial.version)
+                    accepted, blocked = partition_proposal(session.draft, candidate, data)
+                    if blocked:
+                        retained=accepted if accepted['operations'] or fallback is None else fallback
+                        fallback=partial_message(retained, blocked)
+                        event('plan_partially_blocked',accepted=len(accepted['operations']),blocked=len(blocked))
+                        if len(session.feedback)>=2 or (max_calls is not None and turn+1>=max_calls):
+                            result=fallback;break
+                        session.feedback.append({'accepted_operations':retained['operations'],
+                                                 'blocked_operations':blocked,
+                                                 'instruction':'통과한 작업을 살리고 거부된 항목만 대체하세요. 이미 확인한 정보와 id는 직접 활용하고 사용자에게 다시 조사시키지 마세요.'})
+                        progress('가능한 변경은 보존하고 제한된 항목의 대안을 검토하는 중…')
+                        continue
                 except ValueError as exc:
                     event('plan_rejected',repairs=len(session.feedback))
                     if len(session.feedback)>=2 or (max_calls is not None and turn+1>=max_calls):raise
                     session.feedback.append({'rejected_proposal':candidate,'error':str(exc)})
                     progress('제안의 경로·제약을 확인하고 정리안을 수정하는 중…')
                     continue
-                result=candidate
+                result=fallback if not candidate['operations'] and fallback is not None else candidate
                 break
             if value['operations']:
                 session.protocol_notice='추가 조사와 함께 보낸 operations는 반영하지 않았습니다. 조사를 마치면 inspect를 비우고 필요한 전체 operations를 다시 반환하세요.'
@@ -296,8 +345,12 @@ def run(provider,key,draft,selected,message,conversation,request_fn=ai.transport
                 if cancel.is_set():raise ValueError('조사를 중지했습니다. 정리안은 변경하지 않았습니다.')
                 record={'request':query}
                 try:record['result']=session.inspect(query)
-                except (ValueError,OSError,zipfile.BadZipFile,KeyError,ET.ParseError):
-                    record['error']='조회 불가: 허용 범위/형식/크기 또는 접근 권한을 확인하세요. 이 내용을 확인한 것으로 간주하지 마세요.'
+                except (ValueError,OSError,zipfile.BadZipFile,KeyError,ET.ParseError) as exc:
+                    reason = ('접근 권한이 없습니다.' if isinstance(exc,PermissionError) else
+                              '파일이 없어졌습니다. 상위 폴더 목록을 다시 조회하세요.' if isinstance(exc,FileNotFoundError) else
+                              str(exc) if isinstance(exc,ValueError) else '파일을 읽거나 해석할 수 없습니다.')
+                    record['error']=reason
+                    record['next_step']='이 항목의 내용은 미확인으로 남기고 다른 항목을 계속 조사·정리하세요. 반복 요청으로 제한을 우회하지 마세요.'
                 session.results.append(record)
                 # Local trace has relative IDs and outcome only, never excerpt bodies.
                 session.trace.append({'action':query.get('action') if isinstance(query,dict) else 'invalid',
@@ -305,7 +358,9 @@ def run(provider,key,draft,selected,message,conversation,request_fn=ai.transport
                 event('inspection_finished',ok='result' in record,count=len(session.trace))
                 progress(f"조사 {len(session.trace)}건 · {'조회 완료' if 'result' in record else '조회 제한'}")
     except (ValueError,OSError) as exc:
-        result=None;error=str(exc)
+        if fallback is not None and not cancel.is_set():
+            result={**fallback,'message':fallback['message']+'\n추가 검토 중단: '+str(exc)};error=None
+        else:result=None;error=str(exc)
     except Exception:
         event('unexpected_failure')
         raise

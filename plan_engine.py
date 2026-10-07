@@ -167,8 +167,10 @@ class Draft:
 
     def keep(self, node_id, by='직접'):
         n = self.nodes[node_id]
-        if n['source'] is None: raise ValueError('새 폴더는 수정 취소로 되돌리세요.')
-        self.edit(node_id, n['parent'], n['name'], by)
+        if not n['source']: raise ValueError('기존 하위 항목만 유지할 수 있습니다. 새 폴더는 수정 취소로 되돌리세요.')
+        # Keeping an existing location cancels a draft edit; it does not move a file.
+        self.checkpoint()
+        self.edits[node_id] = {'parent': n['parent'], 'name': n['name'], 'by': by}
 
     def quarantine(self, node_id, by='직접'):
         n = self.nodes[node_id]

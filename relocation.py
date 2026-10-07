@@ -23,6 +23,23 @@ def project_ancestor(root, path):
     return None
 
 
+def boundary_info(root, path, include_self=False):
+    """Explain a detected boundary without disclosing absolute paths to the model."""
+    root, path = Path(root), Path(path)
+    for parent in ([path, *path.parents] if include_self else path.parents):
+        markers = sorted(name for name in MARKERS if os.path.lexists(parent / name))
+        if not markers: continue
+        inside = parent.is_relative_to(root)
+        relative = parent.relative_to(root).as_posix() if inside else '(선택 폴더 상위)/' + parent.name
+        node_id = ('root' if parent == root else relative) if inside else None
+        return {'boundary': relative, 'id': node_id, 'markers': markers,
+                'reason': 'Git 내부 개별 변경 제한' if '.git' in markers else '개발 프로젝트 내부 변경 제한',
+                'next_step': ('프로젝트 내부는 유지하고 이 프로젝트 폴더 전체를 외부 분류 폴더로 이동하는 안을 검토하세요.'
+                              if inside and parent != root else
+                              '현재 선택 범위 전체가 프로젝트 경계 안입니다. 외부 목적지를 만들려면 프로젝트의 상위 폴더를 열어 프로젝트 전체를 선택해야 합니다. 경계 표시 파일이 잘못 놓인 것인지 사용자가 확인할 수도 있습니다. 앱이 Git/설정 파일을 삭제하거나 이동해 제한을 우회하지 않습니다.')}
+    return None
+
+
 def assess(root, relative, report=None):
     # Import here so both execution entry points share the same check without a cycle.
     import organizer_core as core

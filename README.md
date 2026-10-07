@@ -6,7 +6,7 @@
 
 ## Windows 프로그램 다운로드
 
-**[폴더착착 v0.1.1 다운로드 (Windows x64 ZIP)](https://github.com/LeeJaeHu/workspace-organizer/releases/download/v0.1.1/FolderChakchak-v0.1.1-windows-x64.zip)** · [릴리즈 안내](https://github.com/LeeJaeHu/workspace-organizer/releases/tag/v0.1.1)
+**[폴더착착 v0.1.2 다운로드 (Windows x64 ZIP)](https://github.com/LeeJaeHu/workspace-organizer/releases/download/v0.1.2/FolderChakchak-v0.1.2-windows-x64.zip)** · [릴리즈 안내](https://github.com/LeeJaeHu/workspace-organizer/releases/tag/v0.1.2)
 
 Python 설치나 명령어 입력 없이 사용할 수 있습니다.
 
@@ -55,6 +55,8 @@ py -3.12 app.py --root "D:\정리할자료"
 4. **변경 후**에서 드래그로 이동하고, 우클릭으로 이름 변경·새 폴더·메모를 사용할 수 있습니다. 채팅으로도 수정할 수 있습니다.
 5. **이 정리안 적용…**을 누르거나 `적용해줘`라고 입력합니다. 검사 결과와 이동 목록을 확인한 뒤 적용 버튼을 눌러야 실제 파일이 바뀝니다.
 6. 실제 이동은 **작업 기록**에서 확인하고 조건이 맞으면 되돌릴 수 있습니다.
+
+일부 제안이 프로젝트 경계·충돌 등의 검사에 막히면 AI가 항목별 이유와 대안을 받아 다시 검토합니다. 대안을 만들지 못하더라도 이미 초안 검사에 통과한 변경은 보존하고 제외한 항목과 다음 행동을 안내합니다. 실제 적용 전에는 별도로 내용·Git 검사를 합니다. 선택 범위 전체가 프로젝트 내부이면 상위 폴더를 다시 선택해야 할 수 있습니다.
 
 **변경 후 화면은 실제 디스크가 아니라 미적용 정리안을 포함한 예상 구조입니다.** 일부 작업이 보류되면 적용 완료 안내와 함께 남은 변경 수를 표시합니다.
 
@@ -128,4 +130,4 @@ py -3.12 app.py --smoke-test
 .\dist\FolderChakchak\FolderChakchak.exe --smoke-test
 ```
 
-2026-10-08 기준 로컬 자동 검사 79개와 Windows 실행 검사를 통과했습니다. 이는 실제 사용자 자료 전체의 정리 품질이나 모든 공급자 모델의 응답 품질을 검증했다는 뜻은 아닙니다.
+2026-10-08 기준 로컬 자동 검사 84개와 Windows 실행 검사를 통과했습니다. 이는 실제 사용자 자료 전체의 정리 품질이나 모든 공급자 모델의 응답 품질을 검증했다는 뜻은 아닙니다.
