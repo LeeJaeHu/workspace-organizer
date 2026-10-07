@@ -128,7 +128,7 @@ class Organizer(tk.Tk):
         self.bind('<Control-y>', lambda e: self.undo_draft(True) if e.widget not in (self.input,) else None)
         self.protocol('WM_DELETE_WINDOW', self.close); self.poll_job = self.after(100, self.poll)
         self.balance_job = self.after(350, self.balance_panes)
-        self.message('폴더를 펼쳐 살펴보세요. 원하는 정리 방법을 채팅으로 알려 주거나 오른쪽 화면에서 직접 옮길 수 있어요.')
+        self.message('폴더 열기에서 정리할 폴더를 선택하세요. 처음 여는 폴더는 원본을 보존할 작업 폴더를 화면에서 준비합니다. 이후 드래그나 AI 채팅으로 정리안을 만들 수 있습니다.',actions=[('폴더 열기',self.choose_root,False)])
         if initial: self.after(100, lambda: self.load(Path(initial)))
         if key_error:self.after_idle(lambda error=key_error:self.message(error))
 
@@ -299,7 +299,7 @@ class Organizer(tk.Tk):
 
     def choose_root(self):
         if self.busy: return
-        path = filedialog.askdirectory(initialdir=str(self.root_path or 'C:/test'))
+        path = filedialog.askdirectory(initialdir=str(self.root_path or Path.home()),title='정리할 폴더 선택')
         if path: self.load(Path(path))
 
     def load(self, path):
@@ -309,12 +309,46 @@ class Organizer(tk.Tk):
 
     def load_now(self, path):
         if self.busy: return
+        path=Path(path)
+        if path.is_dir() and not (path/core.STATE/'manifest.json').exists():
+            self.prepare_workspace(path);return
         self.search.set('');self.search_cancel.set();self.search_generation+=1
         self.invalidate()
         def done(d):
             self.draft=d; self.root_path=path; self.location.set(str(path)); self.address.set(str(path)); self.opened={'root'}; self.selected=[]
             self.conversation.clear(); self.naming=None; self.render()
         self.job('폴더를 확인하고 있어요…', lambda: plans.Draft(path), done)
+
+    def prepare_workspace(self,source):
+        if self.busy:return
+        w=tk.Toplevel(self);w.title('작업 폴더 준비');w.geometry('720x420')
+        w.transient(self)
+        ttk.Label(w,text='원본은 그대로 두고, 별도의 작업 폴더에서 정리합니다.',padding=14).pack(anchor='w')
+        ttk.Label(w,text='원본: '+str(source),wraplength=680,padding=(14,0)).pack(anchor='w')
+        destination=tk.StringVar(value=str(source.parent/(source.name+'-정리작업')))
+        ttk.Label(w,text='작업 위치 · 원본 밖의 새 폴더 또는 빈 폴더',padding=(14,10)).pack(anchor='w')
+        row=ttk.Frame(w);row.pack(fill='x',padx=14)
+        ttk.Entry(row,textvariable=destination).pack(side='left',fill='x',expand=True)
+        def choose():
+            selected=filedialog.askdirectory(parent=w,title='비어 있는 작업 폴더 선택')
+            if selected:destination.set(selected)
+        ttk.Button(row,text='위치 선택',command=choose).pack(side='right',padx=5)
+        ttk.Label(w,text='제외할 하위 경로 (선택 사항 · 한 줄에 하나)',padding=(14,10)).pack(anchor='w')
+        exclusions=tk.Text(w,height=3);exclusions.pack(fill='x',padx=14)
+        ttk.Label(w,text='자료를 작업 위치에 복사하고 검증합니다. 자료 크기 외에 여유 공간 2GB가 필요합니다.\n준비만으로 AI 요청이나 원본 변경은 발생하지 않습니다.',padding=14,wraplength=680).pack(anchor='w')
+        def start():
+            if self.busy:return
+            target=Path(destination.get().strip())
+            if not target.is_absolute():self.message('작업 위치는 전체 경로로 입력하세요.');return
+            exclude=[line.strip().replace('\\','/').strip('/') for line in exclusions.get('1.0','end').splitlines() if line.strip()]
+            w.destroy();self.ai_cancel=threading.Event();cancel=self.ai_cancel
+            self.message('작업 폴더를 준비합니다. 원본: '+str(source)+'\n작업 위치: '+str(target),actions=[('준비 중지',cancel.set,False)])
+            def done(report):
+                self.message(f"작업 폴더 준비 완료 · {report['copied_files']:,}개 파일 검증 · 제외/접근 실패 {len(report['issues'])}건",
+                    actions=[('제외·실패 내역',lambda:self.text_window('작업 폴더 준비 내역','\n'.join(r['path']+' · '+r['reason'] for r in report['issues']) or '없음'),False)])
+                self.load(target)
+            self.job('작업 폴더를 준비하고 있어요…',lambda:core.copy_sandbox(source,target,progress=self.ai_progress.put,cancel=cancel,exclude=exclude),done)
+        ttk.Button(w,text='이 위치에 작업 폴더 준비',command=start).pack(anchor='e',padx=14,pady=8)
 
     def refresh(self):
         if self.root_path: self.load(self.root_path)

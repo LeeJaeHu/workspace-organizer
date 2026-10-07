@@ -4,7 +4,21 @@
 
 현재는 시험판으로, 원본 대신 프로그램이 등록한 작업 복사본에서 사용합니다. AI는 정리안을 만들며 실제 이동은 사용자의 적용 확인 뒤에만 실행됩니다.
 
-## 실행하기
+## Windows 프로그램 다운로드
+
+**[폴더착착 v0.1.0 다운로드 (Windows x64 ZIP)](https://github.com/LeeJaeHu/workspace-organizer/releases/download/v0.1.0/FolderChakchak-v0.1.0-windows-x64.zip)** · [릴리즈 안내](https://github.com/LeeJaeHu/workspace-organizer/releases/tag/v0.1.0)
+
+Python 설치나 명령어 입력 없이 사용할 수 있습니다.
+
+1. 위 ZIP을 내려받고 **압축을 모두 풀어** 주세요.
+2. 압축을 푼 `FolderChakchak` 폴더에서 **FolderChakchak.exe**를 실행하세요. `_internal` 폴더를 함께 보관해야 합니다.
+3. **폴더 열기**에서 정리할 폴더를 선택하세요.
+4. 처음 여는 폴더는 **작업 폴더 준비** 창에서 작업 위치를 지정하세요. 제외할 하위 경로도 입력할 수 있습니다. 원본은 보존하고 지정한 작업 폴더에서 정리합니다.
+5. AI를 쓰려면 **AI 연결**에 키를 입력하고 채팅을 전송하세요. 실제 이동은 정리안 검토 후 적용합니다.
+
+Windows x64 시험판이며 Windows 11에서 실행을 확인했습니다. 코드 서명 인증서는 적용하지 않아 Windows가 게시자를 확인할 수 없다는 경고를 표시할 수 있습니다. 공식 저장소의 릴리즈와 SHA-256을 확인하세요. Git 프로젝트 검사는 별도 Git 설치가 필요할 수 있습니다. AI 사용료는 별도입니다.
+
+## 소스 코드로 실행하기
 
 ### 준비
 
@@ -24,7 +38,7 @@ py -3.12 app.py --demo
 
 ### 실제 자료로 실행
 
-현재 버전은 등록된 작업 복사본만 엽니다. 경로를 본인의 환경에 맞게 바꾸세요.
+앱에서는 폴더 열기 → 작업 폴더 준비로 진행할 수 있습니다. 개발자가 명령어로 작업본을 만들려면 아래 경로를 본인의 환경에 맞게 바꾸세요.
 
 ```powershell
 py -3.12 organizer_core.py --copy "D:\정리할자료" "D:\폴더착착-작업본"
@@ -39,7 +53,7 @@ py -3.12 app.py --root "D:\폴더착착-작업본"
 py -3.12 organizer_core.py --copy "D:\정리할자료" "D:\폴더착착-작업본" --exclude "제외할폴더"
 ```
 
-`--root`를 생략하면 `C:\test`를 엽니다. 경로를 바꾸려면 앱의 **폴더 열기**를 사용하세요. `.organizer-state/manifest.json`을 임의로 만들어 등록 검사를 우회하지 마세요.
+`--root`를 생략하면 폴더 선택 안내로 시작합니다. 앱의 **폴더 열기**에서 기존 작업본 또는 새로 준비할 일반 폴더를 선택하세요. `.organizer-state/manifest.json`을 임의로 만들어 등록 검사를 우회하지 마세요.
 
 ## 사용 흐름
 
@@ -114,7 +128,7 @@ py -3.12 -m venv .venv
 .\dist\FolderChakchak\FolderChakchak.exe --demo
 ```
 
-배포할 때는 `dist/FolderChakchak` 폴더 전체를 함께 전달해야 합니다. `_internal`을 빼고 exe만 옮기면 실행되지 않습니다. 작업본 생성 도구는 위의 Python 명령으로 사용합니다.
+배포할 때는 `dist/FolderChakchak` 폴더 전체를 함께 전달해야 합니다. `_internal`을 빼고 exe만 옮기면 실행되지 않습니다. 작업본은 앱의 폴더 열기에서 준비할 수 있으며 위 Python 명령도 지원합니다.
 
 기본 실행 검사는 실제 API 호출 없이 임시 샘플과 임시 키 저장소로 진행합니다.
 
@@ -124,4 +138,4 @@ py -3.12 app.py --smoke-test
 .\dist\FolderChakchak\FolderChakchak.exe --smoke-test
 ```
 
-2026-10-08 기준 로컬 자동 검사 75개와 Windows 실행 검사를 통과했습니다. 이는 실제 사용자 자료 전체의 정리 품질이나 모든 공급자 모델의 응답 품질을 검증했다는 뜻은 아닙니다.
+2026-10-08 기준 로컬 자동 검사 76개와 Windows 실행 검사를 통과했습니다. 이는 실제 사용자 자료 전체의 정리 품질이나 모든 공급자 모델의 응답 품질을 검증했다는 뜻은 아닙니다.

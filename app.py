@@ -19,7 +19,7 @@ def make_demo(folder):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--root', default='C:/test')
+    parser.add_argument('--root')
     parser.add_argument('--demo', action='store_true')
     parser.add_argument('--smoke-test', action='store_true')
     args = parser.parse_args()
@@ -27,7 +27,7 @@ if __name__ == '__main__':
         import ctypes
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
     temporary = tempfile.TemporaryDirectory(prefix='organizer-ui-') if args.demo or args.smoke_test else None
-    initial = make_demo(Path(temporary.name)) if temporary else Path(args.root)
+    initial = make_demo(Path(temporary.name)) if temporary else (Path(args.root) if args.root else None)
     app = Organizer(initial,credential_path=Path(temporary.name)/'credentials.bin' if args.smoke_test else None)
     if args.smoke_test:
         def check():
