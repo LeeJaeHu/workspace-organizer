@@ -1,0 +1,15 @@
+# Publish only the current runtime and its setup instructions.
+/*
+!/.gitignore
+!/README.md
+!/pyproject.toml
+!/app.py
+!/desktop.py
+!/ai_providers.py
+!/chat_planner.py
+!/credential_store.py
+!/folder_agent.py
+!/folder_search.py
+!/organizer_core.py
+!/plan_engine.py
+!/relocation.py
