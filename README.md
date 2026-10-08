@@ -6,7 +6,7 @@
 
 ## Windows 프로그램 다운로드
 
-**[폴더착착 v0.1.4 다운로드 (Windows x64 ZIP)](https://github.com/LeeJaeHu/workspace-organizer/releases/download/v0.1.4/FolderChakchak-v0.1.4-windows-x64.zip)** · [릴리즈 안내](https://github.com/LeeJaeHu/workspace-organizer/releases/tag/v0.1.4)
+**[폴더착착 v0.1.5 다운로드 (Windows x64 ZIP)](https://github.com/LeeJaeHu/workspace-organizer/releases/download/v0.1.5/FolderChakchak-v0.1.5-windows-x64.zip)** · [릴리즈 안내](https://github.com/LeeJaeHu/workspace-organizer/releases/tag/v0.1.5)
 
 Python 설치나 명령어 입력 없이 사용할 수 있습니다.
 
@@ -68,6 +68,10 @@ Windows x64 시험판이며 Windows 11에서 실행을 확인했습니다. 코�
 
 ## 모델·키·비용
 
+[![AI 연결 화면: OpenAI 모델, 메시지당 예산, API 키 입력](docs/images/ai-settings.jpg)](docs/images/ai-settings.jpg)
+
+**AI 연결**에서 사용할 모델과 메시지당 예산을 고르고 OpenAI API 키를 입력합니다. 별도의 저장 버튼 없이 키가 자동 저장되며, **지우기**로 저장된 키를 제거할 수 있습니다. 아래 버튼에서 AI 이용 안내와 진단 기록을 확인합니다. 사진은 API 키를 입력하지 않은 실제 설정 화면입니다.
+
 | 공급자 | 앱에서 지원하는 모델 | 키 관리 |
 | --- | --- | --- |
 | OpenAI | `gpt-6.1-sol` 기본, `gpt-5.4-mini` 선택 가능 | [OpenAI Platform](https://platform.openai.com/api-keys) |
@@ -78,7 +82,7 @@ Windows x64 시험판이며 Windows 11에서 실행을 확인했습니다. 코�
 
 메시지당 기본 예산은 **Sol $1.00**, 다른 모델 **$0.20**입니다. **AI 연결 → 메시지당 예산 (USD)**에서 조절할 수 있습니다. 모델·예산 선택은 다음 요청부터 적용하고 재실행 시 기본값으로 돌아갑니다.
 
-예산은 공개 단가로 계산하는 앱의 추정치이며 공급자 결제 상한이 아닙니다. 사용 추정액에 다음 요청의 보수적 예상 비용을 더해 판단하므로 예산을 다 쓰기 전에 멈출 수 있습니다. 중지해도 이미 보낸 요청은 과금될 수 있습니다. 합성 조사 테스트 버튼은 선택한 OpenAI 모델을 사용하며 별도로 최대 8회·추정 $0.20로 제한합니다.
+예산은 공개 단가로 계산하는 앱의 추정치이며 공급자 결제 상한이 아닙니다. 사용 추정액에 다음 요청의 보수적 예상 비용을 더해 판단하므로 예산을 다 쓰기 전에 멈출 수 있습니다. 중지해도 이미 보낸 요청은 과금될 수 있습니다.
 
 ## 자료 전송과 이동 범위
 

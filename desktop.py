@@ -714,7 +714,6 @@ class Organizer(tk.Tk):
         ttk.Label(w,text='전송하면 AI가 바로 조사하고 정리안을 만듭니다. 키는 자동 저장되며 지우기를 누르면 저장된 키도 삭제됩니다.',padding=15,wraplength=620).pack(anchor='w')
         ttk.Button(w,text='AI 이용·전송·비용 안내',command=self.show_guide).pack(anchor='w',padx=15)
         ttk.Button(w,text='진단 기록 보기',command=self.show_diagnostics).pack(anchor='w',padx=15,pady=5)
-        ttk.Button(w,text='OpenAI 합성 조사 테스트 (최대 $0.20)',command=lambda:self.test_investigation(w)).pack(anchor='w',padx=15,pady=5)
 
     def show_diagnostics(self):
         if not self.root_path:return
@@ -733,7 +732,7 @@ AI 연결에 키를 입력하고 메시지를 전송하면 선택한 모델이 �
 현재 작업 폴더의 이름·정리안·메모·최근 대화와 AI가 필요한 만큼 조회한 목록 및 텍스트/코드/CSV/JSON/DOCX 발췌가 선택한 공급자에게 전송됩니다. 관리 영역·생성물·링크·인증정보 후보는 제외하지만 모든 민감정보를 판별하지는 못합니다. 민감한 자료가 없는 작업 범위를 선택하세요. PDF·이미지·음성 본문은 아직 지원하지 않습니다.
 
 얼마나 조사하고 비용이 드나요?
-기본 조사에는 고정 호출 횟수·누적 항목 수 제한이 없습니다. 자료가 많으면 이전 조회 자료를 나눠 보내고 필요할 때 재조회합니다. 파일 2MB와 한 번에 본문 6,000자, 지원 형식 제한은 유지합니다. 기본 예산은 GPT-6.1 Sol $1.00, Mini $0.20이며 AI 연결에서 모델별로 변경할 수 있습니다. 다음 메시지부터 적용되고 재실행하면 기본값으로 돌아갑니다. 이미 사용한 추정액과 다음 요청의 보수적인 비용 상한을 더해 예산을 검사하므로 예산만큼 쓰기 전에 멈출 수 있습니다. 공급자 결제 상한은 아니며 실제 청구는 공급자 콘솔에서 확인하세요. 중지해도 이미 전송한 요청은 과금될 수 있습니다. 별도 합성 테스트는 계속 최대 $0.20입니다.
+기본 조사에는 고정 호출 횟수·누적 항목 수 제한이 없습니다. 자료가 많으면 이전 조회 자료를 나눠 보내고 필요할 때 재조회합니다. 파일 2MB와 한 번에 본문 6,000자, 지원 형식 제한은 유지합니다. 기본 예산은 GPT-6.1 Sol $1.00, Mini $0.20이며 AI 연결에서 모델별로 변경할 수 있습니다. 다음 메시지부터 적용되고 재실행하면 기본값으로 돌아갑니다. 이미 사용한 추정액과 다음 요청의 보수적인 비용 상한을 더해 예산을 검사하므로 예산만큼 쓰기 전에 멈출 수 있습니다. 공급자 결제 상한은 아니며 실제 청구는 공급자 콘솔에서 확인하세요. 중지해도 이미 전송한 요청은 과금될 수 있습니다.
 
 언제 실제 파일이 바뀌나요?
 AI와 드래그는 변경 후 화면의 정리안만 편집합니다. 적용 요청 → 변경 검토 → ‘확인했어요 · 적용’ 이후에만 프로그램이 파일을 이동합니다. 삭제·임의 명령 실행·덮어쓰기 기능은 제공하지 않습니다. Git/개발 환경 등의 이동 제약은 최종 검사에서 확인하며, 준비가 필요한 항목은 보류합니다.
@@ -743,23 +742,6 @@ AI와 드래그는 변경 후 화면의 정리안만 편집합니다. 적용 요
 
 키와 기록
 API 키는 Windows DPAPI로 암호화해 로컬 사용자 설정 폴더에 저장하며 재실행 시 불러옵니다. AI 연결에서 지우면 저장된 키도 삭제됩니다. 사용량과 이동 기록, 메모는 작업 폴더의 앱 관리 영역에 보관합니다. 조사 본문과 API 키는 일반 사용 기록에 저장하지 않습니다.''')
-
-    def test_investigation(self, window=None):
-        if self.busy:return
-        key=self.keys['OpenAI'].get().strip()
-        model_id=self.model_ids['OpenAI'].get()
-        if not key:self.message('AI 연결에서 OpenAI 키를 입력해 주세요.');return
-        if window:window.destroy()
-        self.ai_cancel=threading.Event();cancel=self.ai_cancel
-        self.message('합성 강의 노트와 영수증으로 OpenAI 조사 테스트를 시작합니다. 사용자 파일은 전송하거나 이동하지 않습니다. 최대 $0.20이며 실행 중 요청은 취소해도 과금될 수 있습니다.',actions=[('테스트 중지',cancel.set,False)])
-        def done(report):
-            lines='\n'.join(f"{k}: {'통과' if v else '실패'}" for k,v in report['checks'].items())
-            cost=report['usage']['estimated_usd']
-            self.message(('합성 조사 테스트 통과' if report['passed'] else '합성 조사 테스트 미통과')+'\n'+lines+'\n'+(report['error'] or report['message'])+
-                (f'\n추정 비용 ${cost:.6f}' if cost is not None else '\n비용 미확인'))
-            if self.root_path:
-                core.write_json(core.safe_path(self.root_path,core.STATE+'/ai-evaluation.json',False),report)
-        self.job('합성 조사 테스트 중…',lambda:folder_agent.self_test(key,progress=self.ai_progress.put,cancel=cancel,model_id=model_id),done)
 
     def history(self):
         if not self.root_path or self.busy:return
