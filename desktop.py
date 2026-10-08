@@ -43,8 +43,6 @@ class Organizer(tk.Tk):
         for provider,value in self.keys.items():
             value.trace_add('write',lambda *_,p=provider:self.schedule_key_save(p))
         self.model_ids={p:tk.StringVar(value=m['id']) for p,m in ai.MODELS.items()}
-        self.budgets={i:tk.StringVar(value=f'{folder_agent.default_budget(i):.2f}')
-                      for options in ai.MODEL_OPTIONS.values() for i in options}
         self.address = tk.StringVar(value='')
         self.status = tk.StringVar(); self.chat_visible = True
         self.search_cancel=threading.Event();self.search_queue=queue.Queue();self.search_generation=0
@@ -614,16 +612,12 @@ class Organizer(tk.Tk):
         model_id=self.model_ids[provider].get()
         if not key:
             self.message('AI 연결에서 사용할 공급자의 키를 입력해 주세요.',actions=[('AI 연결',self.settings,False)]); return
-        try:budget=folder_agent.parse_budget(self.budgets[model_id].get())
-        except ValueError as exc:
-            self.input.insert('1.0',text)
-            self.message(str(exc),actions=[('AI 연결',self.settings,False)]);return
         version=self.draft.version
         frozen=self.draft
         self.invalidate()
         self.ai_cancel=threading.Event()
         cancel=self.ai_cancel
-        self.message(f'{model_id} · 메시지 예산 ${budget:.2f}\n폴더 구조와 필요한 내용을 조사하고 있습니다.',actions=[('조사 중지',cancel.set,False)])
+        self.message(f'{model_id}\n폴더 구조와 필요한 내용을 조사하고 있습니다.',actions=[('조사 중지',cancel.set,False)])
         snapshot=copy.deepcopy(self.draft);selected=self.selected[:];conversation=self.conversation[:]
         def done(response):
             usage=response['usage']
@@ -641,7 +635,7 @@ class Organizer(tk.Tk):
             self.message(result['message'],actions=[('이 정리안 적용…',self.review,False)] if self.draft.operations() else [])
             cost=usage['estimated_usd'];self.status.set(f"{usage['calls']}회 요청 · 추정 ${cost:.6f}" if cost is not None else '비용 미산정 · 공급자 사용량 확인 필요')
         self.job('AI가 조사할 항목을 고르는 중…',lambda:folder_agent.run(provider,key,snapshot,selected,text,conversation,
-            cancel=cancel,progress=self.ai_progress.put,diagnostic=folder_agent.diagnostic_writer(snapshot.root),model_id=model_id,budget=budget),done)
+            cancel=cancel,progress=self.ai_progress.put,diagnostic=folder_agent.diagnostic_writer(snapshot.root),model_id=model_id),done)
 
     def review(self):
         if self.busy or not self.draft: return
@@ -699,13 +693,9 @@ class Organizer(tk.Tk):
                 values=[model['id'],*[i for i in ai.MODEL_OPTIONS[provider] if i!=model['id']]],state='readonly',width=23)
             picker.pack(side='left',padx=8)
             price=ttk.Label(options);price.pack(side='left')
-            budget_row=ttk.Frame(group);budget_row.pack(fill='x',pady=(4,0))
-            ttk.Label(budget_row,text='메시지당 예산 (USD)').pack(side='left')
-            budget_entry=ttk.Entry(budget_row,width=8);budget_entry.pack(side='left',padx=8)
-            def show_price(event=None,p=provider,label=price,entry=budget_entry):
+            def show_price(event=None,p=provider,label=price):
                 rates=ai.model_config(p,self.model_ids[p].get())
                 label.configure(text=f"100만 토큰: 입력 ${rates['input']:g} / 출력 ${rates['output']:g}")
-                entry.configure(textvariable=self.budgets[rates['id']])
             picker.bind('<<ComboboxSelected>>',show_price);show_price()
             row=ttk.Frame(group);row.pack(fill='x',pady=(6,0))
             ttk.Label(row,text='API 키').pack(side='left')
@@ -732,7 +722,7 @@ AI 연결에 키를 입력하고 메시지를 전송하면 선택한 모델이 �
 현재 작업 폴더의 이름·정리안·메모·최근 대화와 AI가 필요한 만큼 조회한 목록 및 텍스트/코드/CSV/JSON/DOCX 발췌가 선택한 공급자에게 전송됩니다. 관리 영역·생성물·링크·인증정보 후보는 제외하지만 모든 민감정보를 판별하지는 못합니다. 민감한 자료가 없는 작업 범위를 선택하세요. PDF·이미지·음성 본문은 아직 지원하지 않습니다.
 
 얼마나 조사하고 비용이 드나요?
-기본 조사에는 고정 호출 횟수·누적 항목 수 제한이 없습니다. 자료가 많으면 이전 조회 자료를 나눠 보내고 필요할 때 재조회합니다. 파일 2MB와 한 번에 본문 6,000자, 지원 형식 제한은 유지합니다. 기본 예산은 GPT-6.1 Sol $1.00, Mini $0.20이며 AI 연결에서 모델별로 변경할 수 있습니다. 다음 메시지부터 적용되고 재실행하면 기본값으로 돌아갑니다. 이미 사용한 추정액과 다음 요청의 보수적인 비용 상한을 더해 예산을 검사하므로 예산만큼 쓰기 전에 멈출 수 있습니다. 공급자 결제 상한은 아니며 실제 청구는 공급자 콘솔에서 확인하세요. 중지해도 이미 전송한 요청은 과금될 수 있습니다.
+기본 조사에는 고정 호출 횟수·누적 항목 수 제한이 없습니다. 자료가 많으면 이전 조회 자료를 나눠 보내고 필요할 때 재조회합니다. 파일 2MB와 한 번에 본문 6,000자, 지원 형식 제한은 유지합니다. 앱 자체의 메시지당 비용 한도는 없습니다. 실제 청구는 공급자 콘솔에서 확인하세요. 중지해도 이미 전송한 요청은 과금될 수 있습니다.
 
 언제 실제 파일이 바뀌나요?
 AI와 드래그는 변경 후 화면의 정리안만 편집합니다. 적용 요청 → 변경 검토 → ‘확인했어요 · 적용’ 이후에만 프로그램이 파일을 이동합니다. 삭제·임의 명령 실행·덮어쓰기 기능은 제공하지 않습니다. Git/개발 환경 등의 이동 제약은 최종 검사에서 확인하며, 준비가 필요한 항목은 보류합니다.

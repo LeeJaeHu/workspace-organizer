@@ -235,10 +235,6 @@ def diagnostic_writer(root):
     return write
 
 
-def default_budget(model_id):
-    return 1.0 if model_id=='gpt-6.1-sol' else .20
-
-
 def parse_budget(value):
     try:amount=float(value)
     except (TypeError,ValueError):raise ValueError('메시지당 예산은 0보다 큰 달러 금액으로 입력하세요.') from None
@@ -250,7 +246,7 @@ def run(provider,key,draft,selected,message,conversation,request_fn=ai.transport
         cancel=None,progress=lambda text:None,max_calls=None,budget=None,diagnostic=None,model_id=None):
     rates=ai.model_config(provider,model_id)
     model_id=rates['id']
-    budget=parse_budget(default_budget(model_id) if budget is None else budget)
+    budget=parse_budget(budget) if budget is not None else None
     request_id=uuid.uuid4().hex[:12]
     diagnostic_failed=False
     stage='start'
@@ -280,12 +276,12 @@ def run(provider,key,draft,selected,message,conversation,request_fn=ai.transport
             req=ai.build_request(provider,key,data,SCHEMA,SYSTEM,model_id=model_id)
             # UTF-8 byte count is a conservative token bound plus request overhead.
             upper=((len(req.data)+2048)*rates['input']+2500*rates['output'])/1_000_000
-            if usage['estimated_usd'] is None:
+            if budget is not None and usage['estimated_usd'] is None:
                 event('usage_unknown')
                 raise ValueError('사용량을 확인할 수 없어 추가 호출을 중지했습니다. 공급자 사용량을 확인하세요. 정리안은 변경하지 않았습니다.')
-            if usage['estimated_usd']+upper>budget:
+            if budget is not None and usage['estimated_usd']+upper>budget:
                 event('budget_blocked',spent_usd=usage['estimated_usd'],next_upper_usd=round(upper,6),budget_usd=budget)
-                raise ValueError(f"비용 한도: 사용 추정 ${usage['estimated_usd']:.4f} + 다음 요청 보수적 예상 ${upper:.4f}가 설정 예산 ${budget:.2f}를 넘습니다. AI 연결에서 메시지당 예산을 높인 뒤 다시 요청할 수 있습니다. 정리안은 변경하지 않았습니다.")
+                raise ValueError(f"비용 한도: 사용 추정 ${usage['estimated_usd']:.4f} + 다음 요청 보수적 예상 ${upper:.4f}가 설정 예산 ${budget:.2f}를 넘습니다. 개발용 평가의 비용 한도를 확인하세요. 정리안은 변경하지 않았습니다.")
             progress(f'AI 조사 {turn+1}회 · 확인한 항목 {len(session.seen)}개')
             usage['calls']+=1
             stage='api_request';event('call_started',call=usage['calls'])
