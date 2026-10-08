@@ -6,7 +6,7 @@
 
 ## Windows 프로그램 다운로드
 
-**[폴더착착 v0.1.3 다운로드 (Windows x64 ZIP)](https://github.com/LeeJaeHu/workspace-organizer/releases/download/v0.1.3/FolderChakchak-v0.1.3-windows-x64.zip)** · [릴리즈 안내](https://github.com/LeeJaeHu/workspace-organizer/releases/tag/v0.1.3)
+**[폴더착착 v0.1.4 다운로드 (Windows x64 ZIP)](https://github.com/LeeJaeHu/workspace-organizer/releases/download/v0.1.4/FolderChakchak-v0.1.4-windows-x64.zip)** · [릴리즈 안내](https://github.com/LeeJaeHu/workspace-organizer/releases/tag/v0.1.4)
 
 Python 설치나 명령어 입력 없이 사용할 수 있습니다.
 
